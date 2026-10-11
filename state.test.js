@@ -23,7 +23,7 @@ assert.equal(s.size, 0)
 // Claude hook mapping
 const base = { session_id: 'abc', cwd: 'C:\\Users\\me\\repos\\remora' }
 const hook = (name, extra) => fromClaudeHook({ ...base, hook_event_name: name, ...extra })
-assert.deepEqual(hook('SessionStart'), { agent: 'claude', task_id: 'abc', name: undefined, defaultName: 'remora', status: 'idle', detail: 'Session started' })
+assert.deepEqual(hook('SessionStart'), { agent: 'claude', task_id: 'abc', cwd: base.cwd, name: undefined, defaultName: 'remora', status: 'idle', detail: 'Session started' })
 // folder name until a title shows up, then the title sticks even when later events omit it
 const n = new Map()
 apply(n, hook('SessionStart'))
@@ -62,6 +62,17 @@ assert.equal(tasks().length, 2) // unknown ids don't create ghost rows
 feed('PostToolUse', { tool_name: 'TaskStop', tool_input: { task_id: 'sub1' } })
 assert.equal(tasks().find((x) => x.id === 'sub1').status, 'stopped')
 assert.equal(hook('PostCompact'), null)
+
+// PR created from the session is attached once; unrelated Bash output is ignored
+const pr = new Map()
+const prHook = (command, stdout) => apply(pr, hook('PostToolUse', { tool_name: 'Bash', tool_input: { command }, tool_response: { stdout } }))
+prHook('ls', 'https://github.com/o/r/pull/1')
+assert.equal(pr.get('claude:abc').pr, undefined)
+prHook('gh pr create --fill', 'https://github.com/o/r/pull/7')
+assert.deepEqual(pr.get('claude:abc').pr, { url: 'https://github.com/o/r/pull/7', state: 'open' })
+pr.get('claude:abc').pr.state = 'merged'
+apply(pr, hook('Stop'))
+assert.equal(pr.get('claude:abc').pr.state, 'merged') // later events keep the polled state
 
 // the pin toggle survives later updates
 n.get('claude:abc').pinned = true

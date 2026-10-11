@@ -34,6 +34,9 @@
   #pin { margin: 0; accent-color: #5b8def; }
   .logo { position: relative; }
   .badge { position: absolute; right: 1px; top: 1px; min-width: 13px; height: 13px; border-radius: 7px; background: #5b8def; color: #fff; font-size: 9px; line-height: 13px; text-align: center; }
+  .pr { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; border: 1px solid #181a1f; }
+  .pr svg { width: 9px; height: 9px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .pr.open { background: #2da44e; } .pr.conflict { background: #e5484d; } .pr.merged { background: #8250df; }
   #tasks { margin: 0 0 8px; padding: 6px 0 0; border-top: 1px solid #3a3d45; max-height: 150px; overflow-y: auto; }
   #tasks h2 { margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #8b8f98; }
   #tasks div { margin-bottom: 5px; }
@@ -65,6 +68,11 @@
   const LABEL = { claude: 'Claude Code', gemini: 'Gemini', muse: 'Muse', instinct: 'Instinct' }
   const STATUS = { idle: 'Idle', working: 'Working', needs_input: 'Needs input', done: 'Completed', failed: 'Failed' }
   const TASK = { working: 'Running', done: 'Finished', failed: 'Failed', stopped: 'Stopped' }
+  const PR = {
+    open: ['Open PR', '<circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="12.5" r="1.5"/><path d="M4 5v6M12 11V6.5a2 2 0 0 0-2-2H8.5"/>'],
+    conflict: ['PR has merge conflicts', '<path d="M8 3v6.5M8 12.8v.2"/>'],
+    merged: ['PR merged', '<circle cx="4" cy="3.5" r="1.5"/><circle cx="4" cy="12.5" r="1.5"/><circle cx="12" cy="9" r="1.5"/><path d="M4 5v6M5.3 4.8C9 5.5 12 6.5 12 7.5"/>'],
+  }
   const $ = (id) => document.getElementById(id)
   const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text })
   let state = { logos: {}, sessions: [] }, selected = null
@@ -84,6 +92,14 @@
       b.onclick = () => { selected = selected === s.key ? null : s.key; render() }
       const running = (s.tasks || []).filter((t) => t.status === 'working').length
       if (running) b.append(el('span', 'badge', running))
+      const pr = PR[s.pr && s.pr.state]
+      if (pr) {
+        const c = el('span', `pr ${s.pr.state}`, '')
+        c.innerHTML = `<svg viewBox="0 0 16 16">${pr[1]}</svg>`
+        b.append(c)
+        b.title += ` · ${pr[0]}`
+        b.ariaLabel = b.title
+      }
       return b
     }))
     if (!state.sessions.length) box.innerHTML = '<span id="empty">No agents</span>'

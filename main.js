@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen } = require('electron')
 const http = require('http')
+const { execFile } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { apply, fromClaudeHook } = require('./state')
@@ -70,6 +71,25 @@ setInterval(() => {
   }
   if (changed) push()
 }, 60000)
+
+// PR badge: for a known PR, refresh its state; otherwise ask gh for the PR of the branch checked out
+// in the session's folder (no PR / not a repo / no gh = error, ignored).
+function pollPr() {
+  for (const s of sessions.values()) {
+    if (s.agent !== 'claude' || s.pr?.state === 'merged' || (!s.pr && !s.cwd)) continue
+    const args = ['pr', 'view', ...(s.pr ? [s.pr.url] : []), '--json', 'url,state,mergeable']
+    execFile('gh', args, { cwd: s.cwd, timeout: 20000 }, (err, out) => {
+      if (err) return
+      let r
+      try { r = JSON.parse(out) } catch { return }
+      const before = s.pr && s.pr.state
+      if (r.state === 'CLOSED') delete s.pr
+      else s.pr = { url: s.pr ? s.pr.url : r.url, state: r.state === 'MERGED' ? 'merged' : r.mergeable === 'CONFLICTING' ? 'conflict' : 'open' }
+      if ((s.pr && s.pr.state) !== before) push()
+    })
+  }
+}
+setInterval(pollPr, 30000)
 
 function createWindow() {
   // Windows: sits on the empty left end of the taskbar (assumes centred taskbar icons).
