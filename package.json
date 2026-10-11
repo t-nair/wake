@@ -1,0 +1,13 @@
+{
+  "name": "wake",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node state.test.js"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0"
+  }
+}

@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+  html, body { margin: 0; overflow: hidden; background: transparent; font: 12px/1.4 "Segoe UI", sans-serif; color: #e8eaed; user-select: none; }
+  #root { position: fixed; left: 0; bottom: 0; width: max-content; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  #strip, #tip { background: rgba(24, 26, 31, .94); border: 1px solid #3a3d45; border-radius: 12px; }
+  #strip, #logos { display: flex; align-items: center; gap: 2px; }
+  #strip { padding: 4px; }
+  #grip { width: 12px; align-self: stretch; -webkit-app-region: drag; cursor: move; background: radial-gradient(#6b6f78 1px, transparent 1.5px) center / 4px 5px; border-radius: 4px; }
+  button { all: unset; cursor: pointer; border-radius: 8px; }
+  button:hover, button:focus-visible, button.sel { background: #33363e; }
+  .logo { width: 34px; height: 34px; display: grid; place-items: center; }
+  .logo svg { width: 24px; height: 24px; fill: none; stroke: #a0a4ac; stroke-width: 1.1; stroke-linejoin: round; }
+  .idle svg { opacity: .55; }
+  .working svg { animation: pulse 1.4s ease-in-out infinite; }
+  .done svg { fill: #3ddc84; stroke: none; }
+  .needs_input svg { fill: #f5c542; stroke: none; }
+  .failed svg { fill: #ff5d5d; stroke: none; }
+  @keyframes pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  #empty { padding: 0 8px; color: #8b8f98; }
+  #min { width: 20px; height: 34px; text-align: center; color: #8b8f98; }
+  #tip { width: 240px; padding: 10px 12px; box-sizing: border-box; }
+  #tip h1 { margin: 0 0 2px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+  #tip .meta { color: #8b8f98; }
+  #tip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: #a0a4ac; }
+  #tip .dot.done { background: #3ddc84; } #tip .dot.needs_input { background: #f5c542; } #tip .dot.failed { background: #ff5d5d; }
+  #tip p { margin: 8px 0; max-height: 96px; overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; }
+  #dismiss { padding: 2px 8px; border: 1px solid #3a3d45; color: #c3c6cc; }
+  #actions { display: flex; align-items: center; gap: 12px; }
+  #actions label { display: flex; align-items: center; gap: 4px; color: #c3c6cc; cursor: pointer; }
+  #pin { margin: 0; accent-color: #5b8def; }
+  .logo { position: relative; }
+  .badge { position: absolute; right: 1px; top: 1px; min-width: 13px; height: 13px; border-radius: 7px; background: #5b8def; color: #fff; font-size: 9px; line-height: 13px; text-align: center; }
+  #tasks { margin: 0 0 8px; padding: 6px 0 0; border-top: 1px solid #3a3d45; max-height: 150px; overflow-y: auto; }
+  #tasks h2 { margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #8b8f98; }
+  #tasks div { margin-bottom: 5px; }
+  #tasks .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #tasks .d { color: #8b8f98; padding-left: 13px; }
+  #tip .dot.working { animation: pulse 1.4s ease-in-out infinite; }
+  #tip .dot.stopped { background: none; box-shadow: inset 0 0 0 1.5px #8b8f98; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="tip" hidden>
+    <h1></h1>
+    <div class="meta"><span class="dot"></span><span id="status"></span></div>
+    <p></p>
+    <div id="tasks" hidden></div>
+    <div id="actions">
+      <button id="dismiss">Dismiss</button>
+      <label title="Don't auto-dismiss this one 20 minutes after it completes"><input type="checkbox" id="pin"> Keep</label>
+    </div>
+  </div>
+  <div id="strip">
+    <div id="grip" title="Drag to move"></div>
+    <span id="logos"></span>
+    <button id="min" title="Minimise to tray" aria-label="Minimise to tray">&ndash;</button>
+  </div>
+</div>
+<script>
+  const LABEL = { claude: 'Claude Code', gemini: 'Gemini', muse: 'Muse', instinct: 'Instinct' }
+  const STATUS = { idle: 'Idle', working: 'Working', needs_input: 'Needs input', done: 'Completed', failed: 'Failed' }
+  const TASK = { working: 'Running', done: 'Finished', failed: 'Failed', stopped: 'Stopped' }
+  const $ = (id) => document.getElementById(id)
+  const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text })
+  let state = { logos: {}, sessions: [] }, selected = null
+
+  const ago = (t) => {
+    const m = Math.floor((Date.now() - t) / 60000)
+    return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
+  }
+
+  function render() {
+    const box = $('logos')
+    box.replaceChildren(...state.sessions.map((s) => {
+      const b = document.createElement('button')
+      b.className = `logo ${s.status}${s.key === selected ? ' sel' : ''}`
+      b.title = b.ariaLabel = `${LABEL[s.agent]}: ${s.name} (${STATUS[s.status]})`
+      b.innerHTML = state.logos[s.agent] || '' // our own bundled SVG files
+      b.onclick = () => { selected = selected === s.key ? null : s.key; render() }
+      const running = (s.tasks || []).filter((t) => t.status === 'working').length
+      if (running) b.append(el('span', 'badge', running))
+      return b
+    }))
+    if (!state.sessions.length) box.innerHTML = '<span id="empty">No agents</span>'
+
+    const s = state.sessions.find((x) => x.key === selected)
+    $('tip').hidden = !s
+    if (s) {
+      $('tip').querySelector('h1').textContent = s.name
+      $('tip').querySelector('.dot').className = `dot ${s.status}`
+      $('status').textContent = `${LABEL[s.agent]} · ${STATUS[s.status]} · ${ago(s.updated)}`
+      $('tip').querySelector('p').textContent = s.detail || 'No details reported.'
+      $('pin').checked = !!s.pinned
+      // background tasks: running first, then most recent
+      const tasks = [...(s.tasks || [])].sort((a, b) => (b.status === 'working') - (a.status === 'working') || b.updated - a.updated)
+      $('tasks').hidden = !tasks.length
+      $('tasks').replaceChildren(el('h2', '', 'Background tasks'), ...tasks.map((t) => {
+        const row = el('div', '')
+        const title = el('span', 't', `${t.kind === 'agent' ? 'Agent' : 'Command'}: ${t.name}`)
+        title.prepend(el('span', `dot ${t.status}`, ''))
+        title.title = `${TASK[t.status]} · ${ago(t.updated)}`
+        row.append(title, el('span', 't d', t.detail ? `${TASK[t.status]} · ${t.detail}` : TASK[t.status]))
+        return row
+      }))
+    }
+  }
+
+  $('dismiss').onclick = () => { api.dismiss(selected); selected = null }
+  $('pin').onchange = (e) => api.pin(selected, e.target.checked)
+  $('min').onclick = () => api.minimize()
+  new ResizeObserver(([e]) => api.resize(e.target.offsetWidth, e.target.offsetHeight)).observe($('root'))
+  api.onState((s) => { state = s; render() })
+  setInterval(render, 30000) // keeps "5m ago" fresh
+  api.ready()
+</script>
+</body>
+</html>
