@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen } = require('electron')
 const http = require('http')
+const { execFile } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { apply, fromClaudeHook } = require('./state')
@@ -70,6 +71,22 @@ setInterval(() => {
   }
   if (changed) push()
 }, 60000)
+
+// PR state for sessions that created one: needs the gh CLI, silently skipped without it.
+setInterval(() => {
+  for (const s of sessions.values()) {
+    if (!s.pr || s.pr.state === 'merged') continue
+    execFile('gh', ['pr', 'view', s.pr.url, '--json', 'state,mergeable'], { timeout: 20000 }, (err, out) => {
+      if (err || !s.pr) return
+      let r
+      try { r = JSON.parse(out) } catch { return }
+      const before = s.pr.state
+      if (r.state === 'CLOSED') delete s.pr
+      else s.pr.state = r.state === 'MERGED' ? 'merged' : r.mergeable === 'CONFLICTING' ? 'conflict' : 'open'
+      if (!s.pr || s.pr.state !== before) push()
+    })
+  }
+}, 30000)
 
 function createWindow() {
   // Windows: sits on the empty left end of the taskbar (assumes centred taskbar icons).

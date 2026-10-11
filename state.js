@@ -27,6 +27,7 @@ function apply(sessions, raw, now = Date.now()) {
     agent: ev.agent,
     status: ev.status === 'keep' ? prev.status || 'working' : ev.status === 'start' ? 'working' : ev.status,
     tasks: mergeTask(prev.tasks || [], raw.task, now),
+    pr: mergePr(prev.pr, raw.pr), // { url, state: open|conflict|merged }; state is refreshed by main.js via gh
     pinned: !!prev.pinned, // user toggle in the widget: exempt from auto-dismiss
     name: ev.name || prev.name || clip(raw.defaultName, 120) || ev.task_id,
     detail: ev.detail ?? prev.detail ?? '',
@@ -51,6 +52,13 @@ function mergeTask(tasks, t, now) {
     updated: now,
   }
   return [...tasks.filter((x) => x.id !== t.id), merged].slice(-MAX_TASKS)
+}
+
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/
+
+function mergePr(old, url) {
+  const m = typeof url === 'string' && PR_URL.exec(url)
+  return m && (!old || old.url !== m[0]) ? { url: m[0], state: 'open' } : old
 }
 
 const NOTIFICATION = /^<task-notification>[\s\S]*?<task-id>(.*?)<\/task-id>[\s\S]*?<status>(.*?)<\/status>(?:[\s\S]*?<summary>([\s\S]*?)<\/summary>)?/
@@ -93,7 +101,9 @@ function fromClaudeHook(h) {
       let task
       if (bg) task = { id: bg, kind: 'command', name: i.description || i.command, detail: i.command, status: 'working' }
       if (h.tool_name === 'TaskStop') task = { id: i.task_id || i.shell_id, status: 'stopped' }
-      return { ...ev, status: 'start', task }
+      // a PR created from this session; later state changes come from polling gh
+      const pr = h.tool_name === 'Bash' && /\bgh\s+pr\s+create\b/.test(i.command || '') ? JSON.stringify(h.tool_response || '') : undefined
+      return { ...ev, status: 'start', task, pr }
     }
     case 'Notification': return { ...ev, status: 'needs_input', detail: h.message }
     case 'Stop': return { ...ev, status: 'done', detail: h.last_assistant_message }
