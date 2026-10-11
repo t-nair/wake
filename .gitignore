@@ -3,3 +3,5 @@ node_modules/
 # relay URL + token, and the paste-ready prompts that contain the token
 config.json
 agent-instructions.md
+dist/
+release/

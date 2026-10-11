@@ -1,7 +1,8 @@
 // Shared by the Electron app and the Cloudflare worker: keep it free of Node-only requires.
 const AGENTS = ['claude', 'gemini', 'muse', 'instinct']
 // start/needs_input/done/failed are the public API; idle, end and keep are used by the Claude hooks.
-const STATUSES = { start: 'working', needs_input: 'needs_input', done: 'done', failed: 'failed', idle: 'idle', end: 'end', keep: 'keep' }
+// "start" is stored as "working".
+const STATUSES = new Set(['start', 'needs_input', 'done', 'failed', 'idle', 'end', 'keep'])
 const MAX_TASKS = 20
 
 const clip = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : undefined)
@@ -10,7 +11,7 @@ const clip = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : undefined
 function validate(ev) {
   if (!ev || typeof ev !== 'object') return null
   const task_id = clip(String(ev.task_id ?? ''), 200)
-  if (!AGENTS.includes(ev.agent) || !Object.hasOwn(STATUSES, ev.status) || !task_id) return null
+  if (!AGENTS.includes(ev.agent) || !STATUSES.has(ev.status) || !task_id) return null
   return { agent: ev.agent, task_id, status: ev.status, name: clip(ev.name, 120), detail: clip(ev.detail, 500) }
 }
 
@@ -24,7 +25,7 @@ function apply(sessions, raw, now = Date.now()) {
   sessions.set(key, {
     key,
     agent: ev.agent,
-    status: ev.status === 'keep' ? prev.status || 'working' : STATUSES[ev.status],
+    status: ev.status === 'keep' ? prev.status || 'working' : ev.status === 'start' ? 'working' : ev.status,
     tasks: mergeTask(prev.tasks || [], raw.task, now),
     pinned: !!prev.pinned, // user toggle in the widget: exempt from auto-dismiss
     name: ev.name || prev.name || clip(raw.defaultName, 120) || ev.task_id,

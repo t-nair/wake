@@ -19,8 +19,8 @@ export class Relay extends DurableObject {
   }
 }
 
-async function authorized(req, url, env) {
-  const given = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '') || url.searchParams.get('key') || ''
+async function authorized(req, env) {
+  const given = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
   if (!env.TOKEN) return false
   const hash = (s) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))
   return crypto.subtle.timingSafeEqual(await hash(given), await hash(env.TOKEN))
@@ -29,7 +29,7 @@ async function authorized(req, url, env) {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url)
-    if (!(await authorized(req, url, env))) return json({ ok: false, error: 'unauthorized' }, 401)
+    if (!(await authorized(req, env))) return json({ ok: false, error: 'unauthorized' }, 401)
     const relay = env.RELAY.get(env.RELAY.idFromName('main'))
 
     if (req.method === 'POST' && url.pathname === '/event') {

@@ -40,7 +40,7 @@ http.createServer((req, res) => {
 // --- relay: Instinct and Muse post to the Cloudflare worker, we pull from it ---
 function pollRelay() {
   let cfg
-  try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')) } catch { return }
+  try { cfg = JSON.parse(fs.readFileSync(path.join(app.isPackaged ? app.getPath('userData') : __dirname, 'config.json'), 'utf8')) } catch { return }
   if (!cfg.relayUrl || !cfg.token) return
   let since = 0, first = true
   const tick = async () => {
@@ -72,9 +72,13 @@ setInterval(() => {
 }, 60000)
 
 function createWindow() {
-  // Sits on the empty left end of the taskbar (assumes centred taskbar icons).
-  const { bounds: sb } = screen.getPrimaryDisplay()
-  anchor = { x: sb.x + 8, bottom: sb.y + sb.height - 2 }
+  // Windows: sits on the empty left end of the taskbar (assumes centred taskbar icons).
+  // Elsewhere: bottom-left of the work area, so it clears the dock / panel.
+  const dock = () => {
+    const d = screen.getPrimaryDisplay()[process.platform === 'win32' ? 'bounds' : 'workArea']
+    anchor = { x: d.x + 8, bottom: d.y + d.height - 2 }
+  }
+  dock()
   win = new BrowserWindow({
     width: 120, height: 44, x: anchor.x, y: anchor.bottom - 44,
     frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
@@ -83,7 +87,7 @@ function createWindow() {
   win.setAlwaysOnTop(true, 'screen-saver')
   // ponytail: the taskbar is topmost too and jumps in front whenever it's clicked, so re-raise on a timer.
   // Truly embedding in the taskbar needs unsupported explorer.exe hacks on Windows 11.
-  setInterval(() => win.isVisible() && win.moveTop(), 1000)
+  if (process.platform === 'win32') setInterval(() => win.isVisible() && win.moveTop(), 1000)
   win.loadFile('index.html')
   // will-move only fires for user drags, so our own setBounds calls don't move the anchor
   let dragging = false
@@ -97,15 +101,14 @@ function createWindow() {
   // Resolution or scaling changed (docking, projector, new monitor): the old anchor may now be
   // off-screen, so snap back to the taskbar's left end.
   const redock = () => {
-    const { bounds: d } = screen.getPrimaryDisplay()
-    anchor = { x: d.x + 8, bottom: d.y + d.height - 2 }
+    dock()
     const { width, height } = win.getBounds()
     win.setBounds({ x: anchor.x, y: anchor.bottom - height, width, height })
   }
   for (const ev of ['display-metrics-changed', 'display-added', 'display-removed']) screen.on(ev, redock)
 
   tray = new Tray(path.join(__dirname, 'tray.png'))
-  tray.setToolTip('Agent tracker')
+  tray.setToolTip('Agent Dock')
   const toggle = () => (win.isVisible() ? win.hide() : win.show())
   tray.on('click', toggle)
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -132,7 +135,9 @@ if (!app.requestSingleInstanceLock()) app.quit()
 else {
   app.on('second-instance', () => win?.show())
   app.whenReady().then(() => {
-    app.setLoginItemSettings({ openAtLogin: true, path: process.execPath, args: [app.getAppPath()] })
+    app.dock?.hide() // macOS: tray-only, no Dock icon
+    // Dev mode has to relaunch electron with the app path; a packaged app is its own executable.
+    if (process.platform !== 'linux') app.setLoginItemSettings(app.isPackaged ? { openAtLogin: true } : { openAtLogin: true, path: process.execPath, args: [app.getAppPath()] })
     createWindow()
     pollRelay()
   })

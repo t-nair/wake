@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Agent tracker: Gemini",
+  "name": "Agent Dock: Gemini",
   "version": "0.1.0",
-  "description": "Reports Gemini generating/finished to the local agent tracker widget.",
+  "description": "Reports Gemini generating/finished to the local Agent Dock widget.",
   "host_permissions": ["http://127.0.0.1:4747/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [{ "matches": ["https://gemini.google.com/*"], "js": ["content.js"] }]
