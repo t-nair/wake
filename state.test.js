@@ -23,7 +23,7 @@ assert.equal(s.size, 0)
 // Claude hook mapping
 const base = { session_id: 'abc', cwd: 'C:\\Users\\me\\repos\\remora' }
 const hook = (name, extra) => fromClaudeHook({ ...base, hook_event_name: name, ...extra })
-assert.deepEqual(hook('SessionStart'), { agent: 'claude', task_id: 'abc', name: undefined, defaultName: 'remora', status: 'idle', detail: 'Session started' })
+assert.deepEqual(hook('SessionStart'), { agent: 'claude', task_id: 'abc', cwd: base.cwd, name: undefined, defaultName: 'remora', status: 'idle', detail: 'Session started' })
 // folder name until a title shows up, then the title sticks even when later events omit it
 const n = new Map()
 apply(n, hook('SessionStart'))

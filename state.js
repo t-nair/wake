@@ -28,6 +28,7 @@ function apply(sessions, raw, now = Date.now()) {
     status: ev.status === 'keep' ? prev.status || 'working' : ev.status === 'start' ? 'working' : ev.status,
     tasks: mergeTask(prev.tasks || [], raw.task, now),
     pr: mergePr(prev.pr, raw.pr), // { url, state: open|conflict|merged }; state is refreshed by main.js via gh
+    cwd: clip(raw.cwd, 300) || prev.cwd, // lets main.js look up the branch's PR
     pinned: !!prev.pinned, // user toggle in the widget: exempt from auto-dismiss
     name: ev.name || prev.name || clip(raw.defaultName, 120) || ev.task_id,
     detail: ev.detail ?? prev.detail ?? '',
@@ -69,6 +70,7 @@ function fromClaudeHook(h) {
   const ev = {
     agent: 'claude',
     task_id: h.session_id,
+    cwd: h.cwd,
     name: h.session_title, // only some events carry it, so the folder name is just a fallback
     defaultName: String(h.cwd || '').split(/[\\/]/).filter(Boolean).pop(),
   }
