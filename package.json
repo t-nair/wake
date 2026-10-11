@@ -1,13 +1,39 @@
 {
-  "name": "wake",
+  "name": "agent-dock",
   "version": "0.1.0",
   "private": true,
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node state.test.js"
+    "test": "node state.test.js",
+    "dist": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^38.0.0"
+    "electron": "^38.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.agentdock.app",
+    "productName": "Agent Dock",
+    "files": [
+      "main.js",
+      "preload.js",
+      "state.js",
+      "index.html",
+      "tray.png",
+      "logos/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }

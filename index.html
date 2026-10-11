@@ -110,13 +110,13 @@
     }
   }
 
-  $('dismiss').onclick = () => { api.dismiss(selected); selected = null }
-  $('pin').onchange = (e) => api.pin(selected, e.target.checked)
-  $('min').onclick = () => api.minimize()
-  new ResizeObserver(([e]) => api.resize(e.target.offsetWidth, e.target.offsetHeight)).observe($('root'))
+  $('dismiss').onclick = () => { api.send('dismiss', selected); selected = null }
+  $('pin').onchange = (e) => api.send('pin', selected, e.target.checked)
+  $('min').onclick = () => api.send('minimize')
+  new ResizeObserver(([e]) => api.send('resize', e.target.offsetWidth, e.target.offsetHeight)).observe($('root'))
   api.onState((s) => { state = s; render() })
   setInterval(render, 30000) // keeps "5m ago" fresh
-  api.ready()
+  api.send('ready')
 </script>
 </body>
 </html>
